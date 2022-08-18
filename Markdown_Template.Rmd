@@ -1,0 +1,68 @@
+---
+title: "MARKDOWN TEMPLATE"
+author: "Nick Graetz"
+date: "Sept 4, 2020"
+output: pdf_document
+---
+  
+```{r setup, echo=FALSE, message=FALSE, warning=FALSE}
+# Load knitr package and settings
+library(knitr)
+library(data.table)
+library(ggplot2)
+library(gridExtra)
+library(stargazer)
+options(scipen=999)
+knitr::opts_chunk$set(fig.width=8, fig.height=4, fig.align = "center") 
+## Check out: https://rstudio.com/wp-content/uploads/2015/02/rmarkdown-cheatsheet.pdf
+```
+
+# **Problem 1**
+
+Let's do some math:
+
+\begin{align}
+Y&=\mu \\
+&=\beta \\
+&=2+2 
+\end{align}
+
+# **Problem 2**
+
+Let's do some code:
+
+```{r, echo=FALSE, eval=TRUE, message=FALSE, warning=FALSE}
+x <- 10
+d <- data.table(x=1:10,
+                y=(1:10)^2)
+print(x)
+```
+
+In my code I made a numeric vector `r x`.  
+
+I can set the echo=TRUE argument in my R code chunk to print out the contents of the chunk in my final document.  
+
+```{r, echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
+x <- 10
+d <- data.table(a=1:10,
+                b=(1:10)^2)
+```
+
+There are a bunch of packages to make pretty tables from data.frame type objects, kable() is the simplest
+
+```{r, echo=FALSE, eval=TRUE, message=FALSE, warning=FALSE}
+kable(d)
+```
+
+\pagebreak
+
+# **Problem 3**
+
+Let's do some code and make a plot:
+
+```{r, echo=FALSE, eval=TRUE, message=FALSE, warning=FALSE}
+ggplot(data=d) +
+  geom_line(aes(x=a,
+                y=b)) + 
+  theme_bw()
+```

@@ -1,0 +1,194 @@
+---
+title: "Exercise 1 Solutions"
+author: "Nick Graetz"
+date: "Sept 16, 2020"
+output: pdf_document
+---
+  
+```{r setup, echo=FALSE, message=FALSE, warning=FALSE}
+# Load knitr package and settings
+library(knitr)
+library(data.table)
+library(ggplot2)
+library(gridExtra)
+library(haven)
+library(dplyr)
+options(scipen=999)
+knitr::opts_chunk$set(echo=TRUE, fig.width=8, fig.height=4, fig.align = "center") 
+## Check out: https://rstudio.com/wp-content/uploads/2015/02/rmarkdown-cheatsheet.pdf
+```
+
+# **Problem 1 (a)**
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE}
+# Load data 
+
+# Using dplyr:
+dataset <- read.delim("C:/Users/ncgra/Downloads/SCHIZREP.dat", header=FALSE, sep="")
+dataset <- dataset %>%
+   rename(id = V1, imps79 = V2, week = V3, treatment = V4, sex = V5)
+
+# Using data.table (I use data.table throughout):
+dataset <- fread("C:/Users/ncgra/Downloads/SCHIZREP.dat")
+setnames(dataset, c('id','imps79','week','treatment','sex'))
+
+# Get summary stats over all times
+sums <- dataset[,list(imps79_mean=round(mean(imps79),2),
+                      imps79_sd=round(sd(imps79),2),
+                      N=.N),
+                by='week']
+sums <- sums[order(week)]
+kable(sums)
+```
+
+# **Problem 1 (b)**
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE}
+## Grab ids of the first ten patients
+first_ten <- unique(dataset[,id])[1:10]
+ggplot(data=dataset[id %in% first_ten,]) + 
+  geom_point(aes(x=week,
+                 y=imps79)) + 
+  facet_wrap(~id) + 
+  theme_bw() 
+```
+
+# **Problem 1 (c)**
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE}
+ggplot(data=dataset[id %in% first_ten,],
+       aes(x=week,
+           y=imps79)) + 
+  geom_point() + 
+  geom_smooth(method = 'loess') + 
+  facet_wrap(~id) + 
+  theme_bw() 
+```
+
+# **Problem 1 (c)**
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE}
+dataset[, week2 := week^2]
+dataset[, ols_linear := predict(lm(imps79~week))]
+dataset[, ols_sq := predict(lm(imps79~week2))]
+dataset_plot <- melt(dataset,
+                     id.vars=c('id','week'),
+                     measure.vars=c('ols_linear','ols_sq'),
+                     variable.name='model')
+ggplot() + 
+  geom_point(data=dataset[id %in% first_ten,],
+             aes(x=week,
+                 y=imps79)) + 
+  geom_line(data=dataset_plot[id %in% first_ten,],
+            aes(x=week,
+                y=value,
+                color=model),
+            size=2) + 
+  theme_bw() 
+```
+
+# **Problem 1 (d)**
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE}
+sums <- dataset[,list(imps79_mean=mean(imps79)), by=c('week','treatment')]
+ggplot(data=dataset,
+            aes(x=week,
+                y=imps79)) + 
+  geom_line(aes(group=id),
+            alpha=0.1) +
+  geom_line(data=sums,
+            aes(x=week,
+                y=imps79_mean),
+            size=3) + 
+  geom_smooth(method='lm') + 
+  facet_wrap(~treatment) + 
+  theme_bw() 
+```
+
+# **Problem 2 (a)**
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE}
+library(plm)
+library(wooldridge)
+data('airfare')
+## Our panel is i="id", t="year"
+pooled_ols <- lm(log(fare)~as.factor(year)+concen+ldist+ldistsq, data=airfare)
+## What is the % increase in fare associated with a 0.1 increase in concen?
+pooled_ols_fare_increase <- (exp(pooled_ols$coefficients[['concen']]*0.10)-1)*100
+```
+
+The increase expected increase in fare associated with $\Delta\text{concen}=0.10$ is `r round(pooled_ols_fare_increase,2)`%.
+
+# **Problem 2 (b)**
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE}
+confint(pooled_ols)['concen',]
+```
+
+# **Problem 2 (c)**
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE}
+dist_preds <- data.table(ldist=seq(1,10,0.01))
+dist_preds[, coef := ldist*pooled_ols$coefficients[['ldist']] +
+                     (ldist^2)*pooled_ols$coefficients[['ldistsq']]]
+gg1 <- ggplot() + 
+  geom_line(data=dist_preds,
+            aes(x=ldist,
+                y=coef)) + 
+  geom_hline(yintercept = 0, color='black', size=2) + 
+  theme_bw()
+gg2 <- ggplot() + 
+  geom_histogram(data=airfare,
+                 aes(x=ldist)) + 
+  xlim(c(0,10)) + 
+  theme_bw()
+grid.arrange(grobs=list(gg1,gg2))
+```
+
+# **Problem 2 (d)**
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE}
+# Random effects models with plm
+res_model <- plm(log(fare)~concen+ldist+ldistsq+as.factor(year), 
+                    data = airfare,
+                    index = c("id"), 
+                    model = "random")
+res_fare_increase <- (exp(res_model$coefficients[['concen']]*0.10)-1)*100
+# Try LME instead
+library(nlme)
+res_model2 <- lme(log(fare)~concen+ldist+ldistsq+as.factor(year),
+                  data=airfare, random= ~1|id,
+                  method="ML", control=list(opt = "optim"))
+res_fare_increase2 <- (exp(res_model2$coefficients$fixed[['concen']]*0.10)-1)*100
+# Virtually identical answers
+```
+
+The increase expected increase in fare associated with $\Delta\text{concen}=0.10$ is `r round(res_fare_increase,2)`%.
+
+# **Problem 2 (e)**
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE}
+# Fixed effects models
+library(plm)
+fes_model <- plm(log(fare)~concen+ldist+ldistsq+as.factor(year), 
+                    data = airfare,
+                    index = c("id"), 
+                    model = "within")
+fes_fare_increase <- (exp(fes_model$coefficients[['concen']]*0.10)-1)*100
+fes_fare_increase
+# Compare to dummy approach
+fes_model <- lm(log(fare)~concen+ldist+ldistsq+as.factor(year)+as.factor(id), data=airfare)
+fes_fare_increase <- (exp(fes_model$coefficients[['concen']]*0.10)-1)*100
+fes_fare_increase
+```
+
+The increase expected increase in fare associated with $\Delta\text{concen}=0.10$ is `r round(fes_fare_increase,2)`%. As $\lambda$ approaches 1, FEs and REs estimators will give the same results. Here, $\lambda$ is 0.835 which is fairly close to 1.
+
+# **Problem 2 (f)**
+
+Possible other time-constant characteristics of routes: populations in origins/destinations, magnitude of total routes at airports, passenger traffic, etc. 
+
+# **Problem 2 (g)**
+
+Convinced? It's always possible that we haven't controlled for important time-varying confounders. For this causal question, the FEs model is more conservative than the REs model because it is difficult to check the validity of assumptions of the REs model, such as a lack or correlation between observed variables and omitted variables.
+

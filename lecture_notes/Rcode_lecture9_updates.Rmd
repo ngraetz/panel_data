@@ -1,0 +1,642 @@
+---
+title: "Rcode_lecture9"
+author: "Xi Song"
+date: "10/29/2020"
+  beamer_presentation:
+    keep_tex: true
+# note the tabs in the "output ..." above - they are necessary or knitr won't work 
+# click the "Run all" button then "Knit" button to produce pdf and Beamer .pdf and .tex
+---
+
+## R Codes
+
+```{r, echo=TRUE}
+library(dplyr)
+library(lattice)
+library(survival)
+
+# Lecture 9 Discrete-Time Duration Models
+# Remember to install the packages using install.packages("packagenames") before you load the packages
+
+library(dplyr)
+library(lattice)
+library(survival)
+
+rm(list=ls())
+# Set your working director
+setwd("C:/Users/ncgra/Downloads/")
+
+# Figure 11.1 estimated hazard function and survivor function
+
+firstsex <- read.table("firstsex.csv", sep=",", header=T)
+ts0 <- survfit(Surv(time, 1-censor) ~ 1, conf.type="none", subset=(pt==0), data=firstsex)
+ts1 <- survfit(Surv(time, 1-censor) ~ 1, conf.type="none", subset=(pt==1), data=firstsex)
+
+h0 <- ts0$n.event/ts0$n.risk
+h1 <- ts1$n.event/ts1$n.risk
+
+plot(ts0$time, h0, type="l", ylab="Estimated Hazard Probability", xlab="Grade",
+     ylim=c(0.0, 0.5), xlim=c(6,12), col="red")
+par(new=T)
+plot(ts1$time, h1, type="l", ylab="",
+     ylim=c(0.0, 0.5), xlim=c(6,12), xlab="", col="blue")
+
+plot(ts0$time, ts0$surv, type="l", ylab="Estimated Survival Function", xlab="Grade",
+     ylim=c(0.0, 1.0), xlim=c(6,12), col="red")
+par(new=T)
+plot(ts1$time, ts1$surv, type="l", ylab="", ylim=c(0.0, 1.0), xlim=c(6,12),
+     xlab="", col="blue")
+abline(h=c(0.5), lty=2)
+```
+
+
+```{r, echo=TRUE}
+# Table 11.1 predicted hazard probability and survivor probability
+tab11.1.0 <- cbind(time=ts0$time, nleft=ts0$n.risk, failed=ts0$n.event, hazard=h0, survival=ts0$surv)
+tab11.1.1 <- cbind(time=ts1$time, nleft=ts1$n.risk, failed=ts1$n.event, hazard=h1, survival=ts1$surv)
+tab11.1 <- rbind(tab11.1.0, tab11.1.1)
+
+tab11.1
+
+tsall <- survfit(Surv(time, 1-censor)~1, conf.type="none", data=firstsex)
+h <- tsall$n.event/tsall$n.risk
+tab11.1.all <- cbind(time=tsall$time, nleft=tsall$n.risk, failed=tsall$n.event, hazard=h, survival=tsall$surv)
+tab11.1.all
+```
+
+
+```{r, echo=TRUE}
+# Figure 11.2 comparing hazard, odds, and logit based on observational data
+odds0 <- h0/(1-h0)
+odds1 <- h1/(1-h1)
+logith0 <- log(odds0)
+logith1 <- log(odds1)
+
+plot(ts0$time, h0, type="l", ylab="Estimated Hazard Probability", xlab="Grade",
+     ylim=c(0.0,1), xlim=c(6,12), col="red")
+par(new=T)
+plot(ts1$time, h1, type="l", ylab="", ylim=c(0.0,1), xlim=c(6,12), xlab="", col="blue")
+
+
+plot(ts0$time, odds0, type="l", ylab="Estimated Odds", xlab="Grade",
+     ylim=c(0,1), xlim=c(6,12), col="red")
+par(new=T)
+plot(ts1$time, odds1, type="l", ylab="", ylim=c(0,1), xlim=c(6,12), xlab="", col="blue")
+
+
+plot(ts0$time, logith0, type="l", ylab="Estimated Logit", xlab="Grade",
+     ylim=c(-4,0), xlim=c(6,12), col="red")
+par(new=T)
+plot(ts1$time, logith1, type="l", ylab="", ylim=c(-4,0), xlim=c(6,12), xlab="", col="blue")
+```
+
+
+```{r, echo=TRUE}
+# Figure 11.4 comparing hazard, odds, and logit based on model fit
+# Note that the R codes provided by the UCLA website are wrong. There is no interaction between PT and period
+firstsex.pp<-read.table("firstsex_pp.csv", sep=",", header=T)
+
+# Panel A logit(hazard)
+
+afit3 <- glm(event~pt + factor(period), family="binomial", data=firstsex.pp)
+t <- data.frame(cbind(y=afit3$linear.predictors, time=firstsex.pp$period, pt=firstsex.pp$pt))
+t0 <- t[t$pt==0,]
+t0 <- t0[order(t0$time),]
+t1 <- t[t$pt==1,]
+t1 <- t1[order(t1$time),]
+
+
+plot(t0$time, t0$y, type="b", ylab="", ylim=c(-4,0), xlim=c(6,12), xlab="", col="red")
+par(new=T)
+plot(t1$time, t1$y, type="b", ylab="", ylim=c(-4,0), xlim=c(6,12), xlab="", col="blue")
+
+# Panel B odds
+
+t <- data.frame(cbind(y = exp(afit3$linear.predictors), time=firstsex.pp$period, pt=firstsex.pp$pt))
+t0 <- t[t$pt==0,]
+t0 <- t0[order(t0$time),]
+t1 <- t[t$pt==1,]
+t1 <- t1[order(t1$time),]
+
+plot(t0$time, t0$y, type="b", ylab="Odds", ylim=c(0,1), xlim=c(6,12), xlab="", col="red")
+par(new=T)
+plot(t1$time, t1$y, type="b", ylab="", ylim=c(0,1), xlim=c(6,12), xlab="", col="blue")
+
+# Panel C hazard
+t <- data.frame(cbind(y=afit3$fitted.values, time=firstsex.pp$period, pt=firstsex.pp$pt))
+t0 <- t[t$pt==0,]
+t0 <- t0[order(t0$time),]
+t1 <- t[t$pt==1,]
+t1 <- t1[order(t1$time),]
+
+plot(t0$time, t0$y, type="b", ylab="Hazard", ylim=c(0, 0.5), xlim=c(6,12), xlab="", col="red")
+par(new=T)
+plot(t1$time, t1$y, type="b", ylab="", ylim=c(0,0.5), xlim=c(6,12), xlab="", col="blue")
+
+#############################
+## Nick
+#############################
+library(data.table)
+library(ggplot2)
+library(boot)
+d <- as.data.table(firstsex.pp)
+## The predict() functions often have useful options to return different transformations for you.
+d[, logit_hazard := predict(afit3)]
+d[, hazard := predict(afit3,type='response')]
+d[, hazard2 := inv.logit(logit_hazard)]
+d[, odds := exp(logit_hazard)]
+d <- melt(d, id.vars = c('id','period','pt'), measure.vars = c('logit_hazard','hazard','odds'))
+ggplot() + 
+  geom_line(data=d,
+            aes(x=period,y=value,color=as.factor(pt)),size=2) +
+  facet_wrap(~variable,scales='free',ncol=3) +
+  theme_bw()
+## Remember that when we use the input dataset to make and plot predictions, we are only getting predictions
+## where we have data and then often connecting these with a line. Fine in this case with discrete time, but 
+## if you want true predictions over the whole domain with continuous variables it is usually better to just make a template.
+```
+
+
+```{r, echo=TRUE}
+# Table 11.3 Four discrete-time hazard models
+# Note that the BICs are slightly different from those presented in the textbook
+# AIC = -2logL + kp, where p is #parameters and k =2
+# BIC = -2logL + log(n)*p
+# Model A
+modelA <-glm(event~factor(period) -1, family="binomial", data=firstsex.pp)
+anova(modelA)
+modelA$aic
+
+
+# Model B
+modelB <- glm(event~factor(period) + pt-1, family="binomial", data=firstsex.pp)
+anova(modelB)
+modelB$aic
+
+# Model C
+modelC <- glm(event~factor(period) + pas -1, family="binomial", data=firstsex.pp)
+anova(modelC)
+modelC$aic
+
+# Model D
+modelD <- glm(event ~ factor(period) + pt + pas -1, family = "binomial", data=firstsex.pp)
+anova(modelD)
+modelD$aic
+```
+
+
+```{r, echo=TRUE}
+# Table 11.4
+
+modelA<-glm(event~factor(period) - 1, family="binomial", data=firstsex.pp)
+col0<-c(7:12)
+col1<-c("D7", "D8", "D9", "D10", "D11", "D12")
+col2<-exp(modelA$coefficients)
+col3<- 1 /(1+exp(-modelA$coefficients))
+tab11.4<-data.frame(time=col0, Predictor=col1, parameter=modelA$coefficients, 
+                    fitted.odds=col2, fitted.hazard=col3, row.names=NULL)
+tab11.4
+```
+
+
+```{r, echo=TRUE}
+# Table 11.5 Computing fitted hazard probabilities and survival probabilities
+
+modelB<-glm(event~factor(period) + pt - 1, family="binomial", data=firstsex.pp)
+t<-data.frame(hazard=modelB$fitted.values, time=firstsex.pp$period, pt=firstsex.pp$pt)
+t$logit<-log(t$hazard/(1-t$hazard))
+
+ta<-aggregate(t, list(pt=t$pt, time=t$time), mean)
+ta.0<-ta[ta$pt==0, ]
+ta.1<-ta[ta$pt==1, ]
+
+c1<-c(7:12)
+c2<-ta.0$logit
+c3<-ta.1$logit-ta.0$logit
+c4<-ta.0$logit
+c5<-ta.1$logit
+c6<-ta.0$hazard
+c7<-ta.1$hazard
+
+tab11.5<-data.frame(time=c1, alpha=c2, beta=c3, logit_0 = c4, logit_1= c5, 
+                    hazard_0 = c6, hazard_1 = c7)
+
+tab11.5$surv_0<-c(1:7)
+tab11.5$surv_1<-c(1:7)
+tab11.5$surv_0[1]<-1-tab11.5$hazard_0[1]
+tab11.5$surv_1[1]<-1-tab11.5$hazard_1[1]
+for(i in 2:6) {
+  tab11.5$surv_0[i] = tab11.5$surv_0[i-1]*(1-tab11.5$hazard_0[i])
+  tab11.5$surv_1[i] = tab11.5$surv_1[i-1]*(1-tab11.5$hazard_1[i])
+}
+
+tab11.5
+```
+
+
+```{r, echo=TRUE}
+# Figure 11.6 fitted logit hazard, hazard, and survivor function
+
+plot(tab11.5$time, tab11.5$logit_0, type="l", ylab="Fitted logit(hazard)", 
+     ylim=c(-4, 0), xlim=c(6, 12), xlab="", col="red")
+par(new=T)
+plot(tab11.5$time, tab11.5$logit_1, type="l", ylab="", ylim=c(-4, 0), xlim=c(6, 12), xlab="", col="blue")
+
+plot(tab11.5$time, tab11.5$hazard_0, type="l", ylab="Fitted hazard", 
+     ylim=c(0, 0.5), xlim=c(6, 12), xlab="", col="red")
+par(new=T)
+plot(tab11.5$time, tab11.5$hazard_1, type="l", ylab="", ylim=c(0, 0.5), xlim=c(6, 12), xlab="", col="blue")
+
+plot(tab11.5$time, tab11.5$surv_0, type="l", ylab="Fitted survival probability", 
+     ylim=c(0, 1), xlim=c(6, 12), xlab="", col="red")
+par(new=T)
+plot(tab11.5$time, tab11.5$surv_1, type="l", ylab="", ylim=c(0,1), xlim=c(6, 12), xlab="", col="blue")
+abline(h=c(.5), lty=2)
+```
+
+
+```{r, echo=TRUE}
+# Figure 11.7 fitted hazard and survivor function for based on Model D by subgroups
+
+modelD<-glm(event~factor(period) + pt + pas - 1, family="binomial", data=firstsex.pp)
+coeff<-data.frame(modelD$coefficients)
+myt<-c(1:6)
+h0_pas1<-c(1:6)
+h0_pas0<-c(1:6)
+h0_pasn1<-c(1:6)
+h1_pas1<-c(1:6)
+h1_pas0<-c(1:6)
+h1_pasn1<-c(1:6)
+
+for(i in 1:6) {
+  myt[i]<-i+6
+  h0_pas1[i]<-1/(1+ exp(-(coeff[i,] + coeff[8,])))
+  h0_pas0[i]<-1/(1+ exp(-coeff[i,]))
+  h0_pasn1[i]<-1/(1+ exp(-(coeff[i,] - coeff[8,])))
+  h1_pas1[i]<-1/(1+ exp(-(coeff[i,] + coeff[8,] + coeff[7,])))
+  h1_pas0[i]<-1/(1+ exp(-(coeff[i,] + coeff[7,])))
+  h1_pasn1[i]<-1/(1+ exp(-(coeff[i,] - coeff[8,] + coeff[7,])))
+}
+f<-cbind(h0_pas1,h0_pas0,h0_pasn1, h1_pas1,h1_pas0,h1_pasn1)
+
+matplot(myt, f, type="l", ylab="Fitted hazard", ylim=c(0, 0.5), xlim=c(6, 12), 
+        xlab="Grade", col=1:6, lty=1:6)
+legend(6, .5, c("PT=0 pas=+1", "PT=0 pas=0", "PT=0 pas=-1", 
+                "PT=1 pas=+1", "PT=1 pas=0", "PT=1 pas=-1"), 
+       col=1:6, lty=1:6, pch = "*",
+       ncol =3, cex = 1)
+
+surv0_pas1<-c(1:6)
+surv0_pas0<-c(1:6)
+surv0_pasn1<-c(1:6)
+surv1_pas1<-c(1:6)
+surv1_pas0<-c(1:6)
+surv1_pasn1<-c(1:6)
+
+surv0_pas1[1]<-1-h0_pas1[1]
+surv0_pas0<-1-h0_pas0[1]
+surv0_pasn1<-1-h0_pasn1[1]
+surv1_pas1<-1-h1_pas1[1]
+surv1_pas0<-1-h1_pas1[1]
+surv1_pasn1<-1-h1_pas1[1]
+
+for(i in 2:6) {
+  surv0_pas1[i] = surv0_pas1[i-1]*(1-h0_pas1[i])
+  surv0_pas0[i] = surv0_pas0[i-1]*(1-h0_pas0[i])
+  surv0_pasn1[i] = surv0_pasn1[i-1]*(1-h0_pasn1[i])
+  surv1_pas1[i] = surv1_pas1[i-1]*(1-h1_pas1[i])
+  surv1_pas0[i] = surv1_pas0[i-1]*(1-h1_pas0[i])
+  surv1_pasn1[i] = surv1_pasn1[i-1]*(1-h1_pasn1[i])
+}
+
+s<-cbind(surv0_pas1,surv0_pas0,surv0_pasn1,surv1_pas1,surv1_pas0,surv1_pasn1)
+matplot(myt, s, type="l", ylab="Fitted survival probability", ylim=c(0, 1), xlim=c(6, 12), 
+        xlab="Grade", col=1:6, lty=1:6)
+abline(h=c(.5), lty=2)
+legend(6, .2, c("PT=0 pas=+1", "PT=0 pas=0", "PT=0 pas=-1", 
+                "PT=1 pas=+1", "PT=1 pas=0", "PT=1 pas=-1"), 
+       col=1:6, lty=1:6, pch = "*",
+       ncol =2, cex = 1)
+
+#############################
+## Nick
+## Xi's code has a typo above in using "1-h1_pas1[1]" to make the starting survival rate for all three "pt=1" groups.
+#############################
+template <- as.data.table(expand.grid(c(0,1),c(-1,0,1),c(7:12)))
+setnames(template, c('pt','pas','period'))
+template[, hazard := predict(modelD, type='response', newdata=template)]
+template <- template[order(pt,pas,period)]
+template <- as.data.table(expand.grid(c(0,1),c(-1,0,1),c(7:12)))
+setnames(template, c('pt','pas','period'))
+template[, hazard := predict(modelD, type='response', newdata=template)]
+template <- template[order(pt,pas,period)]
+template[, survival := 1-hazard]
+for(i in 8:12) {
+  template[, lag_survival := shift(survival,type='lag'), by=c('pt','pas')]
+  template[period==i, survival := lag_survival * (1-hazard), by=c('pt','pas')]
+}
+ggplot() +
+  geom_line(data=template,
+            aes(x=period,
+                y=survival,
+                color=as.factor(pas),
+                linetype=as.factor(pt)),
+            size=1) + 
+  theme_bw()
+```
+
+
+```{r, echo=TRUE}
+# Table 12.2 Comparing alternative smooth polynomial representations for the main effect of TIME
+tenure <- read.table("tenure_pp.csv", sep=",", header=T)
+attach(tenure)
+PERIOD2 <- PERIOD^2
+PERIOD3 <- PERIOD^3
+PERIOD4 <- PERIOD^4
+PERIOD5 <- PERIOD^5
+PERIOD6 <- PERIOD^6
+general <- glm(EVENT ~ D1 + D2 + D3 + D4 + D5 + D6 + D7 + D8 + D9, family = "binomial")
+order0 <- glm(EVENT~1, family="binomial")
+order1 <- glm(EVENT~PERIOD, family="binomial")
+order2 <- glm(EVENT~PERIOD + PERIOD2, family="binomial")
+order3 <- glm(EVENT~PERIOD + PERIOD2 + PERIOD3, family="binomial")
+order4 <- glm(EVENT~PERIOD + PERIOD2 + PERIOD3 + PERIOD4, family="binomial")
+order5 <- glm(EVENT~PERIOD + PERIOD2 + PERIOD3 + PERIOD4 + PERIOD5, family="binomial")
+dev <- c(order0$deviance, order1$deviance, order2$deviance, order3$deviance, order4$deviance, order5$deviance, general$deviance)
+dev.diff.p <- c(0, dev[1:5] - dev[2:6])
+dev.diff.gen <- c(dev - dev[7])
+aic <- c(order0$aic, order1$aic, order2$aic, order3$aic, order4$aic, order5$aic, general$aic)
+table12.2 <- cbind(dev, dev.diff.p, dev.diff.gen, aic)
+table12.2
+```
+
+
+```{r, echo=TRUE}
+# Figure 12.1 Fitted logit hazard, hazard, and survivor probability using polynomial regression specifications
+
+general <- glm(EVENT ~ D1 + D2 + D3 + D4 + D5 + D6 + D7 + D8 + D9 - 1, family = "binomial")
+
+fits  <- c()
+survivor.quad = 1
+survivor.gen = 1
+for (i in 1:9){
+  constant = order0$coef[1]
+  linear = order1$coef[1] + order1$coef[2]*i
+  quadratic = order2$coef[1] + order2$coef[2]*i + order2$coef[3]*i**2
+  cubic = order3$coef[1] + order3$coef[2]*i + order3$coef[3]*i**2 + order3$coef[4]*i**3
+  hazard.quad = 1/(1 + exp(-quadratic));
+  survivor.quad = (1 - hazard.quad)*survivor.quad;
+  generalval = general$coef[i]
+  hazard.gen = 1/(1 + exp(-generalval));
+  survivor.gen = (1 - hazard.gen)*survivor.gen;
+  z <- c(i, constant, linear, quadratic, cubic, generalval, hazard.quad, survivor.quad, hazard.gen, survivor.gen)
+  fits <- rbind(fits, z)}
+
+par(mfrow=c(1,1))
+plot(fits[,1], fits[,2], type = "l", lty = 1, xlim = c(0,9), ylim = c(-6,0), xlab = "Years after hire", ylab = "Fitted logit(hazard)")
+points(fits[,1], fits[,3], type = "l", lty = 2)
+points(fits[,1], fits[,4], type = "l", lty = 3)
+points(fits[,1], fits[,5], type = "l", lty = 4)
+points(fits[,1], fits[,6], type = "l", lty = 5)
+legend("bottomright", c("constant", "linear", "quadratic", "cubic", "general"), lty = c(1, 2, 3, 4, 5)) 
+
+par(mfrow=c(1,2))
+plot(fits[,1], fits[,7], type = "l", lty = 1, xlim = c(0,9), ylim = c(0,.4), xlab = "Years after hire", ylab = "Fitted hazard")
+points(fits[,1], fits[,9], type = "l", lty = 2)
+legend("bottomright", c("quadratic","general"), lty = c(1, 2)) 
+
+
+plot(fits[,1], fits[,8], type = "l", lty = 1, xlim = c(0,9), ylim = c(0,1), xlab = "Years after hire", ylab = "Fitted survival")
+points(fits[,1], fits[,10], type = "l", lty = 2)
+legend("bottomleft", c("quadratic","general"), lty = c(1, 2)) 
+```
+
+
+```{r, echo=TRUE}
+# Figure 12.3 Comparing clog-log and logit hazard probabilities
+firstsex<-read.table("firstsex_pp.csv", sep=",", header=T)
+firstsex0  <- subset(firstsex, pt==0)
+firstsex1  <- subset(firstsex, pt==1)
+fs0.logit<-glm(event~d7+d8+d9+d10+d11+d12 - 1, family=binomial(link = "logit"), data = firstsex0)
+fs1.logit<-glm(event~d7+d8+d9+d10+d11+d12 - 1, family=binomial(link = "logit"), data = firstsex1)
+fs0.loglog<-glm(event~d7+d8+d9+d10+d11+d12 - 1, family=binomial(link = "cloglog"), data = firstsex0)
+fs1.loglog<-glm(event~d7+d8+d9+d10+d11+d12 - 1, family=binomial(link = "cloglog"), data = firstsex1)
+
+# We now create a dataset that contains the model coefficients
+
+fig12.3 <- cbind(time = c(7, 8, 9 , 10, 11, 12), fs0.logit = fs0.logit$coef, fs0.loglog = fs0.loglog$coef, fs1.logit = fs1.logit$coef, fs1.loglog = fs1.loglog$coef)
+par(mfrow=c(1,1))
+plot(fig12.3[,1], fig12.3[,2], type = "l", ylab = "Transformed hazard probability", xlab = "Grade", ylim = c(-4,0))
+points(fig12.3[,1], fig12.3[,3], type = "l", lty=2)
+points(fig12.3[,1], fig12.3[,4], type = "l", lty=3)
+points(fig12.3[,1], fig12.3[,5], type = "l", lty=4)
+legend(7, 0, c("pt=0, logit", "pt=0, loglog", "pt=1, logit", "pt=1, loglog"), lty = c(1, 2, 3, 4)) 
+```
+
+
+```{r, echo=TRUE}
+# Table 12.3 Comparing clog-log and logit discrete-time hazard models
+
+fs.cloglog<-glm(event~d7+d8+d9+d10+d11+d12+pt - 1, family=binomial(link = "cloglog"), data = firstsex)
+fs.logit<-glm(event~d7+d8+d9+d10+d11+d12+pt - 1, family=binomial(link = "logit"), data = firstsex)
+
+est.logit <- fs.logit$coef
+est.cloglog <- fs.cloglog$coef
+fbh.logit <- 1/(1+exp(-est.logit))
+fbh.cloglog <- 1-exp(-exp(est.cloglog))
+
+tab12.3 <- cbind(est.cloglog, est.logit, fbh.cloglog, fbh.logit)
+tab12.3 
+fs.cloglog$deviance
+fs.logit$deviance
+```
+
+
+```{r, echo=TRUE}
+# Figure 12.4 proportion experiencing event and logit hazard
+
+depression<-read.table("depression_pp.csv", sep=",", header=T)
+
+percents <- c()
+for (i in 4:39){
+  for (j in 0:1){
+    x <- subset(depression, PERIOD==i & PD==j)
+    y <- table(x$EVENT)
+    if (dim(y)==2){
+      z <- c(i, j, y[[2]], y[[1]], (y[[2]]/(y[[1]]+y[[2]])))}
+    if (dim(y)==1){
+      z <- c(i, j, 0, y[[1]], NA)}
+    percents <- rbind(percents, z)		
+  }
+}
+
+percents <- cbind(percents, log(percents[,5]/(1-percents[,5])))
+colnames(percents) <- c("age", "parent", "event", "nonevent", "percent", "logpercent")
+percents.nm <- as.data.frame(na.omit(percents))
+percent.pd0 <- subset(percents.nm, parent == 0)
+percent.pd1 <- subset(percents.nm, parent == 1)
+
+dmodel<-glm(EVENT ~ ONE + age_18 + age_18sq + age_18cub + PD - 1, family=binomial(link = "logit"), data = depression)
+
+modelfit<- c()
+for (i in 0:1){
+  for (j in 4:39){
+    fitx = dmodel$coef[1] + dmodel$coef[2]*(j-18) + dmodel$coef[3]*(j-18)^2 + dmodel$coef[4]*(j-18)^3 + dmodel$coef[5]*i
+    fithazard = 1/(1 + exp(-fitx))
+    modelfit <- rbind(modelfit, c(i, j, fitx, fithazard))
+  }
+}
+
+modelfit.0 <- subset(data.frame(modelfit), modelfit[,1]==0)
+modelfit.1 <- subset(data.frame(modelfit), modelfit[,1]==1)
+
+par(mfrow=c(1,2))
+plot(percent.pd0$age, percent.pd0$percent, pch = 19, ylim = c(0, .06), xlab = "Age", ylab = "Proportion experiencing event")
+points(percent.pd1$age, percent.pd1$percent, pch = 22)
+points(modelfit.0[,2], modelfit.0[,4], type = 'l', lty = 1)
+points(modelfit.1[,2], modelfit.1[,4], type = 'l', lty = 2)
+legend(5, 0.06, c("PD = 0", "PD = 1"), lty = c(1, 2))
+
+plot(percent.pd0$age, percent.pd0$logpercent, pch = 19, ylim = c(-8, -2), xlab = "Age", ylab = "Logit(proportion experiencing event)")
+points(percent.pd1$age, percent.pd1$logpercent, pch = 22)
+points(modelfit.0[,2], modelfit.0[,3], type = 'l', lty = 1)
+points(modelfit.1[,2], modelfit.1[,3], type = 'l', lty = 2)
+legend(5, -2, c("PD = 0", "PD = 1"), lty = c(1, 2)) 
+```
+
+
+```{r, echo=TRUE}
+# Table 12.4 Nonlinear effects of #siblings
+depression<-read.table("depression_pp.csv", sep=",", header=T)
+
+# Model A continuous NSIBS
+modelA<-glm(EVENT ~ ONE + age_18 + age_18sq + age_18cub + PD + FEMALE + NSIBS- 1,
+            family=binomial(link = "logit"), data = depression)
+summary(modelA)
+
+# Model B discrete NSIBS
+modelB<-glm(EVENT ~ ONE + age_18 + age_18sq + age_18cub + PD + FEMALE + SIBS12 + SIBS34 + SIBS56 + SIBS78 + SIBS9PLUS - 1,
+            family=binomial(link = "logit"), data = depression)
+summary(modelB)
+
+# Model C dichotomous BIGFAMILY
+modelC<-glm(EVENT ~ ONE + age_18 + age_18sq + age_18cub + PD + FEMALE + BIGFAMILY - 1,
+            family=binomial(link = "logit"), data = depression)
+summary(modelC)
+```
+
+
+```{r, echo=TRUE}
+# Table 12.5 Discrete-time hazard models with interactions between predictors and time
+math<-read.table("mathdropout_pp.csv", sep=",", header=T)
+
+# Model A No interaction
+modelA<-glm(EVENT ~ HS11 + HS12 + COLL1 + COLL2 + COLL3 + FEMALE - 1,
+            family=binomial(link = "logit"), data = math)
+summary(modelA)
+
+# Model B Interaction between time and female
+modelB <- glm(EVENT ~ HS11 + HS12 + COLL1 + COLL2 + COLL3 + FHS11 + FHS12 + FCOLL1 + FCOLL2 + FCOLL3 - 1,
+              family=binomial(link = "logit"), data = math)
+summary(modelB)
+
+# Model C Interactions between continuous time and female
+
+modelC <- glm(EVENT ~ HS11 + HS12 + COLL1 + COLL2 + COLL3 + FEMALE + FLTIME - 1,
+              family=binomial(link = "logit"), data = math)
+summary(modelC)
+```
+
+
+```{r, echo=TRUE}
+# Figure 12.8
+# Panel A sample logit
+percents <- c()
+for (i in 1:5){
+  for (j in 0:1){
+    x <- subset(math, PERIOD==i & FEMALE==j)
+    if (sum(x$EVENT) > 0){
+      y <- mean(x$EVENT)}
+    if (sum(x$EVENT)==0){
+      y <- NA}
+    logity <- log(y/(1-y))
+    z <- c(i, j, y, logity)
+    percents <- rbind(percents, z)}}
+
+colnames(percents) <- c("term", "female", "pct", "logit")
+percents <- as.data.frame(na.omit(percents))
+
+percents.m <- subset(percents, female==0)
+percents.f <- subset(percents, female==1)
+
+# Panel B Model A main effect of female
+
+modelfitA <- c()
+for (i in 1:5){
+  for (j in 0:1){
+    logitfit <- modelA$coef[i] + modelA$coef[6]*j
+    hazard = 1/(1 + exp(-logitfit))
+    z <- c(i, j, logitfit, hazard)
+    modelfitA <- rbind(modelfitA, z)}}
+
+colnames(modelfitA) <- c("term", "female", "logitfit", "hazard")
+modelfitA <- as.data.frame(modelfitA)
+modelfitA.m <- subset(modelfitA, female==0)
+modelfitA.f <- subset(modelfitA, female==1)
+
+# Panel C Model B completely general interaction between female and time
+
+modelfitB <- c()
+for (i in 1:5){
+  for (j in 0:1){
+    logitfit <- modelB$coef[i] + modelB$coef[i+5]*j
+    hazard = 1/(1 + exp(-logitfit))
+    z <- c(i, j, logitfit, hazard)
+    modelfitB <- rbind(modelfitB, z)}}
+
+colnames(modelfitB) <- c("term", "female", "logitfit", "hazard")
+modelfitB <- as.data.frame(modelfitB)
+modelfitB.m <- subset(modelfitB, female==0)
+modelfitB.f <- subset(modelfitB, female==1)
+
+# Panel D Model C interaction between female and time
+modelfitC <- c()
+for (i in 1:5){
+  for (j in 0:1){
+    logitfit <- modelC$coef[i] + modelC$coef[6]*j + modelC$coef[7]*i*j
+    hazard = 1/(1 + exp(-logitfit))
+    z <- c(i, j, logitfit, hazard)
+    modelfitC <- rbind(modelfitC, z)}}
+
+colnames(modelfitC) <- c("term", "female", "logitfit", "hazard")
+modelfitC <- as.data.frame(modelfitC)
+modelfitC.m <- subset(modelfitC, female==0)
+modelfitC.f <- subset(modelfitC, female==1)
+
+# Plot 12.8
+par(mfrow=c(2,2))
+
+plot(percents.m$term, percents.m$logit, type = "l", lty = 1, ylim = c(-2.5, 0),
+     main = "Within-group sample hazard functions", xlab = "Term", ylab = "Sample logit(hazard)")
+points(percents.f$term, percents.f$logit, type = "l", lty = 2)
+legend("bottomright", c("Male", "Female"), lty = c(1, 2))
+
+
+plot(modelfitA.m$term, modelfitA.m$logitfit, type = "l", lty = 1, ylim = c(-2.5, 0),
+     main = "Model A", xlab = "Term", ylab = "Fitted logit(hazard)")
+points(modelfitA.f$term, modelfitA.f$logitfit, type = "l", lty = 2)
+legend("bottomright", c("Male", "Female"), lty = c(1, 2))
+
+plot(modelfitB.m$term, modelfitB.m$logitfit, type = "l", lty = 1, ylim = c(-2.5, 0),
+     main = "Model B", xlab = "Term", ylab = "Fitted logit(hazard)")
+points(modelfitB.f$term, modelfitB.f$logitfit, type = "l", lty = 2)
+legend("bottomright", c("Male", "Female"), lty = c(1, 2))
+
+
+plot(modelfitC.m$term, modelfitC.m$logitfit, type = "l", lty = 1, ylim = c(-2.5, 0),
+     main = "Model C", xlab = "Term", ylab = "Fitted logit(hazard)")
+points(modelfitC.f$term, modelfitC.f$logitfit, type = "l", lty = 2)
+legend("bottomright", c("Male", "Female"), lty = c(1, 2))
+```
+
+
